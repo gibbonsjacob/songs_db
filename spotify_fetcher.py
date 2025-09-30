@@ -9,8 +9,7 @@ def load_env_vars():
     spotify_client_id = os.getenv('spotify_client_id')
     spotify_client_secret = os.getenv('spotify_client_secret')
     spotify_redirect_url = os.getenv('spotify_redirect_url')
-    base_dir = os.getenv('songs_base_directory')
-    return spotify_client_id, spotify_client_secret, spotify_redirect_url, base_dir
+    return spotify_client_id, spotify_client_secret, spotify_redirect_url
 
 
 
@@ -20,13 +19,8 @@ spotify_client_id, spotify_client_secret, spotify_redirect_url, base_dir = load_
 scopes = """
         user-read-private
         user-read-email
-        ugc-image-upload 
-        user-read-playback-state 
-        user-modify-playback-state 
-        user-read-currently-playing 
         playlist-read-private 
         playlist-read-collaborative 
-        user-read-recently-played
         """
 
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=spotify_client_id,
@@ -113,17 +107,3 @@ def get_artist_details(artist_ids: list):
     
 
 
-
-def main():
-    
-
-    
-    playlists = get_user_playlists(sp)
-    # playlist_link = "https://open.spotify.com/playlist/7v7C0OvXqzh5g27fva7c3V?si=cb643a32f7c7466e"
-
-    playlist_to_iterate = [p for p in playlists if p.get('name') == 'dezyDUBBBBB'][0]
-    raw_track_payload = [song for song in get_song_details(sp, playlist_to_iterate.get('url'))]
-    
-    
-    
-    return raw_track_payload
