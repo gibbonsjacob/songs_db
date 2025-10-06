@@ -2,8 +2,9 @@ import pandas as pd
 import spotify_fetcher
 from db_management import Database
 from pathlib import Path
-
-
+import uuid 
+import datetime
+import get_video_url
 
 
 ############################ CONFIGS ##############################
@@ -174,6 +175,9 @@ def parse_song_to_artist_map(items: list[dict]) -> pd.DataFrame:
 
 def main():
 
+    ## Batch configs
+    batch_id = str(uuid.uuid4())
+    batch_start_ts = datetime.datetime.now()
 
 
     ## Database stuff 
@@ -268,9 +272,78 @@ def main():
                                         )
         songs_db.execute_sql(new_genre_insert_sql)
 
+    ################################################################################
+    
+    ## Now that we have all of our information pulled in and recorded from Spotify
+    ## Let's do something with it! 
+
+    # First we'll get the track_id of every track that doesn't have a
+    # record in fact_youtube_search (any song without a youtube_url found)
+
+    tracks_to_search_raw = songs_db.select_sql(Path('songs/sql_queries/get_tracks_to_search.sql').read_text())
 
 
+    ## Note - this step is essentially undoing the creation of xref_song_to_artist, but this step helps keep our database
+    ## agnostic of our usage for this specific use case. We could not (and arguably should not) 
+    ## have done this step at the same time as our ingestion 
+    joined_artist_names = tracks_to_search_raw.groupby('track_id', as_index=True)['artist_name'].agg(lambda artist_name: ' x '.join(artist_name))
+    tracks_to_search_stg = tracks_to_search_raw.drop(columns=['artist_name']).drop_duplicates()
+    stg_youtube_search = tracks_to_search_stg.merge(joined_artist_names, how='left', on='track_id')
+    stg_youtube_search['search_query'] = stg_youtube_search.apply(lambda row: f"{row['track_name']} - {row['artist_name']} (Official Music Video)", axis=1)
+    ## Then, we'll search for everything that doesn't have a youtube_url yet
+    
+    search_successes = []
+    errors = []
 
+    for index, row in stg_youtube_search.iterrows():
+        try: 
+            search_ts = datetime.datetime.now()
+            payload = get_video_url.search(row['search_query'])
+            if payload.get('status', 0) == 1: 
+                ## this should only happen if we hit a rate limit error
+                ## Since the error just goes to the JSON payload no Error is raised in our execution. 
 
+                search_successes.append({
+                    "track_id": row['track_id'],
+                    'batch_id': batch_id,
+                    'search_ts': search_ts,
+                    'search_status': 'success',
+                    'search_query': row['search_query'],
+                    "youtube_url": payload['youtube_url']
+
+                })
+
+            else:
+                
+                errors.append({
+                    "batch_id": batch_id,
+                    "track_id": row['track_id'],
+                    "error_ts": search_ts,
+                    "error_message": payload['error_message'],
+                    "error_code": payload['error_code'],
+                    "context": payload['context'],
+                    "stage": "youtube_search"
+                })
+                break ## if this gets hit every subsequent row will fail too
+
+        except Exception as e:
+            # Finally let's catch anything else random that happens and throw it here
+            errors.append({
+                "batch_id": batch_id,
+                "track_id": row['track_id'],
+                "error_ts": datetime.datetime.now(),
+                "error_message": str(e),
+                "error_code": type(e).__name__,
+                "context": None,
+                "stage": "youtube_search"
+            })
+            
+    ## Finally we'll write our search successes to our fact table so downstream processes can use it
+    fact_youtube_search = pd.DataFrame(search_successes)
+    if not fact_youtube_search.empty:
+        fys_insert_sql = songs_db.build_insert_into_sql('fact_youtube_search', fact_youtube_search)
+        songs_db.execute_sql(fys_insert_sql)
+
+    
 if __name__ == "__main__":
     main()
