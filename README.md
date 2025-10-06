@@ -44,7 +44,8 @@ Here’s what happens step-by-step:
 
 2. **Build Search Queries**  
    For each song, we join its artists back together (using `' x '` as a separator) and generate queries like:  
-   ```
+
+   ``` text
    <track_name> - <artist_name> (Official Music Video)
    ```
 
@@ -86,7 +87,8 @@ uv pip install -r pyproject.toml
 
 4. **Set up a Project in Google Cloud Console**: 
     -   Follow the Instructions outlined in [google_project_setup.md](./google_project_setup.md) to establish your own Google Project
-    - We do this so the 100 searches per day limit is ***per user*** 
+    - We do this so the 100 searches per day limit is ***per user***
+    - This page will also walk through how to authenticate your project with OAuth2.0
 5.  **Find All User Playlists**
 
     ```bash
