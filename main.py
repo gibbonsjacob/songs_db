@@ -338,12 +338,34 @@ def main():
                 "stage": "youtube_search"
             })
             
-    ## Finally we'll write our search successes to our fact table so downstream processes can use it
+    ## Finally we'll write our search successes to our fact table and log all our errors
     fact_youtube_search = pd.DataFrame(search_successes)
     if not fact_youtube_search.empty:
         fys_insert_sql = songs_db.build_insert_into_sql('fact_youtube_search', fact_youtube_search)
         songs_db.execute_sql(fys_insert_sql)
 
+    error_df = pd.DataFrame(errors) ## note this is all errors for the whole batch 
+    if not error_df.empty:
+        fel_insert_sql = songs_db.build_insert_into_sql('fact_error_log', error_df)
+        songs_db.execute_sql(fel_insert_sql)
+    
+    
+    batch_summary = {
+        "batch_id": batch_id,
+        "batch_start_ts": batch_start_ts,
+        "batch_end_ts": datetime.datetime.now(),
+        "input_count": len(stg_youtube_search), ## all tracks that didn't have a youtube_url before this batch - using stage because this includes all records prior to recording the success/failure of search
+        "success_count": len(fact_youtube_search), ## all tracks that successfully found a URL
+        "error_count": len(error_df), 
+        "runtime_host": "LOCAL_PC",   
+        "triggered_by": "user_script" 
+    }
+
+    batch_df = pd.DataFrame([batch_summary])
+    batch_insert_sql = songs_db.build_insert_into_sql('fact_batch_execution', batch_df)
+    songs_db.execute_sql(batch_insert_sql)
+    
+    
     
 if __name__ == "__main__":
     main()
