@@ -49,6 +49,7 @@ class Database:
 
     def select_sql(self, sql: str) -> pd.DataFrame:
 
+
         try:
             self.connection, self.cursor = self._initialize()
 
