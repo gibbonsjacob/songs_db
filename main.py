@@ -17,7 +17,7 @@ playlist_of_interest = '<playlist_name>'
 
 
 
-def check_for_tables(songs_db, tables: list) -> dict:
+def check_for_tables(songs_db: Database, tables: list) -> dict:
     """
     Check for existence of core tables (defined below) 
 
